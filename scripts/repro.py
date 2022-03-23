@@ -11,8 +11,6 @@ import argparse
 
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 from tensorboardX import SummaryWriter  # pip install tensorboardX
 
@@ -55,7 +53,10 @@ def main(learning_rate: float, output_dir: str) -> None:
         loss = torch.mean((Y - Yhat) ** 2)
         err = torch.mean((Y.argmax(dim=1) != Yhat.argmax(dim=1)).float())
         print(
-            f"eval: split {split:5s}. loss {loss.item():e}. error {err.item()*100:.2f}%. misses: {int(err.item()*Y.size(0))}"
+            f"eval: split {split:5s}."
+            f" loss {loss.item():e}."
+            f" error {err.item()*100:.2f}%."
+            f" misses: {int(err.item()*Y.size(0))}"
         )
         writer.add_scalar(f"error/{split}", err.item() * 100, pass_num)
         writer.add_scalar(f"loss/{split}", loss.item(), pass_num)
