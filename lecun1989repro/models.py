@@ -106,7 +106,8 @@ class ModernNet(nn.Module):
         self.macs = macs
         self.acts = acts
 
-    def forward(self, x):
+    def _forward(self, x):
+        """A version of the forward pass that also returns the hidden layers."""
 
         # poor man's data augmentation by 1 pixel along x/y directions
         if self.training:
@@ -118,11 +119,11 @@ class ModernNet(nn.Module):
             x, (2, 2, 2, 2), "constant", -1.0
         )  # pad by two using constant -1 for background
         x = F.conv2d(x, self.H1w, stride=2) + self.H1b
-        x = torch.relu(x)
+        h1 = torch.relu(x)
 
         # x is now shape (1, 12, 8, 8)
         x = F.pad(
-            x, (2, 2, 2, 2), "constant", -1.0
+            h1, (2, 2, 2, 2), "constant", -1.0
         )  # pad by two using constant -1 for background
         slice1 = F.conv2d(
             x[:, 0:8], self.H2w[0:4], stride=2
@@ -135,18 +136,21 @@ class ModernNet(nn.Module):
         )  # last 4 planes are cross
         x = torch.cat((slice1, slice2, slice3), dim=1) + self.H2b
         x = torch.relu(x)
-        x = F.dropout(x, p=0.25, training=self.training)
+        h2 = F.dropout(x, p=0.25, training=self.training)
 
         # x is now shape (1, 12, 4, 4)
-        x = x.flatten(start_dim=1)  # (1, 12*4*4)
+        x = h2.flatten(start_dim=1)  # (1, 12*4*4)
         x = x @ self.H3w + self.H3b
-        x = torch.relu(x)
+        h3 = torch.relu(x)
 
         # x is now shape (1, 30)
-        x = x @ self.outw + self.outb
+        o = h3 @ self.outw + self.outb
 
         # x is finally shape (1, 10)
-        return x
+        return o, h3, h2, h1
+
+    def forward(self, x):
+        return self._forward(x)[0]
 
 
 # -----------------------------------------------------------------------------
@@ -214,18 +218,19 @@ class Net(nn.Module):
         self.macs = macs
         self.acts = acts
 
-    def forward(self, x):
+    def _forward(self, x):
+        """A version of the forward pass that also returns the hidden layers."""
 
         # x has shape (1, 1, 16, 16)
         x = F.pad(
             x, (2, 2, 2, 2), "constant", -1.0
         )  # pad by two using constant -1 for background
         x = F.conv2d(x, self.H1w, stride=2) + self.H1b
-        x = torch.tanh(x)
+        h1 = torch.tanh(x)
 
         # x is now shape (1, 12, 8, 8)
         x = F.pad(
-            x, (2, 2, 2, 2), "constant", -1.0
+            h1, (2, 2, 2, 2), "constant", -1.0
         )  # pad by two using constant -1 for background
         slice1 = F.conv2d(
             x[:, 0:8], self.H2w[0:4], stride=2
@@ -237,19 +242,21 @@ class Net(nn.Module):
             torch.cat((x[:, 0:4], x[:, 8:12]), dim=1), self.H2w[8:12], stride=2
         )  # last 4 planes are cross
         x = torch.cat((slice1, slice2, slice3), dim=1) + self.H2b
-        x = torch.tanh(x)
+        h2 = torch.tanh(x)
 
         # x is now shape (1, 12, 4, 4)
-        x = x.flatten(start_dim=1)  # (1, 12*4*4)
+        x = h2.flatten(start_dim=1)  # (1, 12*4*4)
         x = x @ self.H3w + self.H3b
-        x = torch.tanh(x)
+        h3 = torch.tanh(x)
 
         # x is now shape (1, 30)
-        x = x @ self.outw + self.outb
-        x = torch.tanh(x)
+        x = h3 @ self.outw + self.outb
+        o = torch.tanh(x)
 
         # x is finally shape (1, 10)
-        return x
+        return o, h3, h2, h1
 
+    def forward(self, x):
+        return self._forward(x)[0]
 
 # -----------------------------------------------------------------------------
