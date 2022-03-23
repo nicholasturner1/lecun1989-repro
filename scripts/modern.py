@@ -53,94 +53,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 from tensorboardX import SummaryWriter # pip install tensorboardX
 
-# -----------------------------------------------------------------------------
+from lecun1989repro import models
 
-class Net(nn.Module):
-    """ 1989 LeCun ConvNet per description in the paper """
 
-    def __init__(self):
-        super().__init__()
-
-        # initialization as described in the paper to my best ability, but it doesn't look right...
-        winit = lambda fan_in, *shape: (torch.rand(*shape) - 0.5) * 2 * 2.4 / fan_in**0.5
-        macs = 0 # keep track of MACs (multiply accumulates)
-        acts = 0 # keep track of number of activations
-
-        # H1 layer parameters and their initialization
-        self.H1w = nn.Parameter(winit(5*5*1, 12, 1, 5, 5))
-        self.H1b = nn.Parameter(torch.zeros(12, 8, 8)) # presumably init to zero for biases
-        macs += (5*5*1) * (8*8) * 12
-        acts += (8*8) * 12
-
-        # H2 layer parameters and their initialization
-        """
-        H2 neurons all connect to only 8 of the 12 input planes, with an unspecified pattern
-        I am going to assume the most sensible block pattern where 4 planes at a time connect
-        to differently overlapping groups of 8/12 input planes. We will implement this with 3
-        separate convolutions that we concatenate the results of.
-        """
-        self.H2w = nn.Parameter(winit(5*5*8, 12, 8, 5, 5))
-        self.H2b = nn.Parameter(torch.zeros(12, 4, 4)) # presumably init to zero for biases
-        macs += (5*5*8) * (4*4) * 12
-        acts += (4*4) * 12
-
-        # H3 is a fully connected layer
-        self.H3w = nn.Parameter(winit(4*4*12, 4*4*12, 30))
-        self.H3b = nn.Parameter(torch.zeros(30))
-        macs += (4*4*12) * 30
-        acts += 30
-
-        # output layer is also fully connected layer
-        self.outw = nn.Parameter(winit(30, 30, 10))
-        self.outb = nn.Parameter(torch.zeros(10))
-        macs += 30 * 10
-        acts += 10
-
-        self.macs = macs
-        self.acts = acts
-
-    def forward(self, x):
-
-        # poor man's data augmentation by 1 pixel along x/y directions
-        if self.training:
-            shift_x, shift_y = np.random.randint(-1, 2, size=2)
-            x = torch.roll(x, (shift_x, shift_y), (2, 3))
-
-        # x has shape (1, 1, 16, 16)
-        x = F.pad(x, (2, 2, 2, 2), 'constant', -1.0) # pad by two using constant -1 for background
-        x = F.conv2d(x, self.H1w, stride=2) + self.H1b
-        x = torch.relu(x)
-
-        # x is now shape (1, 12, 8, 8)
-        x = F.pad(x, (2, 2, 2, 2), 'constant', -1.0) # pad by two using constant -1 for background
-        slice1 = F.conv2d(x[:, 0:8], self.H2w[0:4], stride=2) # first 4 planes look at first 8 input planes
-        slice2 = F.conv2d(x[:, 4:12], self.H2w[4:8], stride=2) # next 4 planes look at last 8 input planes
-        slice3 = F.conv2d(torch.cat((x[:, 0:4], x[:, 8:12]), dim=1), self.H2w[8:12], stride=2) # last 4 planes are cross
-        x = torch.cat((slice1, slice2, slice3), dim=1) + self.H2b
-        x = torch.relu(x)
-        x = F.dropout(x, p=0.25, training=self.training)
-
-        # x is now shape (1, 12, 4, 4)
-        x = x.flatten(start_dim=1) # (1, 12*4*4)
-        x = x @ self.H3w + self.H3b
-        x = torch.relu(x)
-
-        # x is now shape (1, 30)
-        x = x @ self.outw + self.outb
-
-         # x is finally shape (1, 10)
-        return x
-
-# -----------------------------------------------------------------------------
-
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser(description="Train a 2022 but mini ConvNet on digits")
-    parser.add_argument('--learning-rate', '-l', type=float, default=3e-4, help="Learning rate")
-    parser.add_argument('--output-dir'   , '-o', type=str,   default='out/modern', help="output directory for training logs")
-    args = parser.parse_args()
-    print(vars(args))
-
+def main(learning_rate: float, output_dir: str) -> None:
     # init rng
     torch.manual_seed(1337)
     np.random.seed(1337)
@@ -153,7 +69,7 @@ if __name__ == '__main__':
     writer = SummaryWriter(args.output_dir)
 
     # init a model
-    model = Net()
+    model = models.ModernNet()
     print("model stats:")
     print("# params:      ", sum(p.numel() for p in model.parameters())) # in paper total is 9,760
     print("# MACs:        ", model.macs)
@@ -208,3 +124,15 @@ if __name__ == '__main__':
 
     # save final model to file
     torch.save(model.state_dict(), os.path.join(args.output_dir, 'model.pt'))
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Train a 2022 but mini ConvNet on digits")
+
+    parser.add_argument('--learning-rate', '-l', type=float, default=3e-4, help="Learning rate")
+    parser.add_argument('--output-dir'   , '-o', type=str,   default='out/modern', help="output directory for training logs")
+
+    args = parser.parse_args()
+
+    print(vars(args))
+    main(**vars(args))
