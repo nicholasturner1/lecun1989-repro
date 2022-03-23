@@ -20,11 +20,11 @@ from torchvision import datasets
 torch.manual_seed(1337)
 np.random.seed(1337)
 
-for split in {'train', 'test'}:
+for split in {"train", "test"}:
 
-    data = datasets.MNIST('./data', train=split=='train', download=True)
+    data = datasets.MNIST("./data", train=split == "train", download=True)
 
-    n = 7291 if split == 'train' else 2007
+    n = 7291 if split == "train" else 2007
     rp = np.random.permutation(len(data))[:n]
 
     X = torch.full((n, 1, 16, 16), 0.0, dtype=torch.float32)
@@ -36,10 +36,10 @@ for split in {'train', 'test'}:
         # add a fake batch dimension and a channel dimension of 1 or F.interpolate won't be happy
         xi = xi[None, None, ...]
         # resize to (16, 16) images with bilinear interpolation
-        xi = F.interpolate(xi, (16, 16), mode='bilinear')
-        X[i] = xi[0] # store
+        xi = F.interpolate(xi, (16, 16), mode="bilinear")
+        X[i] = xi[0]  # store
 
         # set the correct class to have target of +1.0
         Y[i, yint] = 1.0
 
-    torch.save((X, Y), split + '1989.pt')
+    torch.save((X, Y), split + "1989.pt")

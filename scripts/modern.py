@@ -51,7 +51,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from tensorboardX import SummaryWriter # pip install tensorboardX
+from tensorboardX import SummaryWriter  # pip install tensorboardX
 
 from lecun1989repro import models
 
@@ -64,20 +64,22 @@ def main(learning_rate: float, output_dir: str) -> None:
 
     # set up logging
     os.makedirs(args.output_dir, exist_ok=True)
-    with open(os.path.join(args.output_dir, 'args.json'), 'w') as f:
+    with open(os.path.join(args.output_dir, "args.json"), "w") as f:
         json.dump(vars(args), f, indent=2)
     writer = SummaryWriter(args.output_dir)
 
     # init a model
     model = models.ModernNet()
     print("model stats:")
-    print("# params:      ", sum(p.numel() for p in model.parameters())) # in paper total is 9,760
+    print(
+        "# params:      ", sum(p.numel() for p in model.parameters())
+    )  # in paper total is 9,760
     print("# MACs:        ", model.macs)
     print("# activations: ", model.acts)
 
     # init data
-    Xtr, Ytr = torch.load('train1989.pt')
-    Xte, Yte = torch.load('test1989.pt')
+    Xtr, Ytr = torch.load("train1989.pt")
+    Xte, Yte = torch.load("test1989.pt")
 
     # init optimizer
     optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
@@ -85,13 +87,15 @@ def main(learning_rate: float, output_dir: str) -> None:
     def eval_split(split):
         # eval the full train/test set, batched implementation for efficiency
         model.eval()
-        X, Y = (Xtr, Ytr) if split == 'train' else (Xte, Yte)
+        X, Y = (Xtr, Ytr) if split == "train" else (Xte, Yte)
         Yhat = model(X)
         loss = F.cross_entropy(yhat, y.argmax(dim=1))
         err = torch.mean((Y.argmax(dim=1) != Yhat.argmax(dim=1)).float())
-        print(f"eval: split {split:5s}. loss {loss.item():e}. error {err.item()*100:.2f}%. misses: {int(err.item()*Y.size(0))}")
-        writer.add_scalar(f'error/{split}', err.item()*100, pass_num)
-        writer.add_scalar(f'loss/{split}', loss.item(), pass_num)
+        print(
+            f"eval: split {split:5s}. loss {loss.item():e}. error {err.item()*100:.2f}%. misses: {int(err.item()*Y.size(0))}"
+        )
+        writer.add_scalar(f"error/{split}", err.item() * 100, pass_num)
+        writer.add_scalar(f"loss/{split}", loss.item(), pass_num)
 
     # train
     for pass_num in range(80):
@@ -99,7 +103,9 @@ def main(learning_rate: float, output_dir: str) -> None:
         # learning rate decay
         alpha = pass_num / 79
         for g in optimizer.param_groups:
-            g['lr'] = (1 - alpha) * args.learning_rate + alpha * (args.learning_rate / 3)
+            g["lr"] = (1 - alpha) * args.learning_rate + alpha * (
+                args.learning_rate / 3
+            )
 
         # perform one epoch of training
         model.train()
@@ -119,18 +125,28 @@ def main(learning_rate: float, output_dir: str) -> None:
 
         # after epoch epoch evaluate the train and test error / metrics
         print(pass_num + 1)
-        eval_split('train')
-        eval_split('test')
+        eval_split("train")
+        eval_split("test")
 
     # save final model to file
-    torch.save(model.state_dict(), os.path.join(args.output_dir, 'model.pt'))
+    torch.save(model.state_dict(), os.path.join(args.output_dir, "model.pt"))
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Train a 2022 but mini ConvNet on digits")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Train a 2022 but mini ConvNet on digits"
+    )
 
-    parser.add_argument('--learning-rate', '-l', type=float, default=3e-4, help="Learning rate")
-    parser.add_argument('--output-dir'   , '-o', type=str,   default='out/modern', help="output directory for training logs")
+    parser.add_argument(
+        "--learning-rate", "-l", type=float, default=3e-4, help="Learning rate"
+    )
+    parser.add_argument(
+        "--output-dir",
+        "-o",
+        type=str,
+        default="out/modern",
+        help="output directory for training logs",
+    )
 
     args = parser.parse_args()
 
