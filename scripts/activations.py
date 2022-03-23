@@ -1,4 +1,4 @@
-"""Collecting the outputs from each layer."""
+"""Collecting the activations from each layer."""
 import os
 import argparse
 
